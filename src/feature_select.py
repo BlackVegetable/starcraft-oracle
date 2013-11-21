@@ -3,11 +3,18 @@ import sys
 import sc2reader
 import os
 import shutil
+from sc2reader.engine.plugins import APMTracker
 
+sc2reader.engine.register_plugin(APMTracker())
 BASE_PATH = "../replays/"
 NEUTRAL = 0
 VALID_REPLAYS_TO_PROCESS = 700
-OVERRIDE_UNIT_END = None # Set to None for no override, or 0.0 to 1.0 otherwise.
+VEHICLE_WEAPON = 0
+VEHICLE_ARMOR = 1
+SHIP_WEAPON = 2
+SHIP_ARMOR = 3
+INFANTRY_WEAPON = 4
+INFANTRY_ARMOR = 5
 
 def remove_marked():
     with open('blacklist.txt', 'r+') as f:
@@ -34,7 +41,7 @@ def main():
                 continue
             # Short circuit for filtering ---
             #total_count += 1
-            #if total_count > 700:
+            #if total_count > VALID_REPLAYS_TO_PROCESS:
             #    break
             #continue
             # -------------------------------
@@ -43,69 +50,130 @@ def main():
             print "Game Processed #: " + `total_count`
             print "Game lasted: " + `game_time` + " seconds."
             
-            avgWorkersList = getAverageWorkers(rep)
-            print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
-            print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
-            avgMineralList = getMineralRate(rep)
-            print avgMineralList[0][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[0][1])
-            print avgMineralList[1][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[1][1]) + "\n"
-            avgGasList = getGasRate(rep)
-            print avgGasList[0][0] + " Avg Gas Rate (0~80): " + str(avgGasList[0][1])
-            print avgGasList[1][0] + " Avg Gas Rate (0~80): " + str(avgGasList[1][1]) + "\n"
-            marinesList = getUnitBuilt(rep, "Marine")
-            print marinesList[0][0] + " Marines Built (0~80): " + str(marinesList[0][1])
-            print marinesList[1][0] + " Marines Built (0~80): " + str(marinesList[1][1]) + "\n"
-            marauderList = getUnitBuilt(rep, "Marauder")
-            print marauderList[0][0] + " Marauders Built (0~80): " + str(marauderList[0][1])
-            print marauderList[1][0] + " Marauders Built (0~80): " + str(marauderList[1][1]) + "\n"
-            reaperList = getUnitBuilt(rep, "Reaper")
-            print reaperList[0][0] + " Reapers Built (0~80): " + str(reaperList[0][1])
-            print reaperList[1][0] + " Reapers Built (0~80): " + str(reaperList[1][1]) + "\n"
-            hellionList = getUnitBuilt(rep, "Hellion")
-            print hellionList[0][0] + " Hellions Built (0~80): " + str(hellionList[0][1])
-            print hellionList[1][0] + " Hellions Built (0~80): " + str(hellionList[1][1]) + "\n"
-            bansheeList = getUnitBuilt(rep, "Banshee")
-            print bansheeList[0][0] + " Banshees Built (0~80): " + str(bansheeList[0][1])
-            print bansheeList[1][0] + " Banshees Built (0~80): " + str(bansheeList[1][1]) + "\n"
-            battlecruiserList = getUnitBuilt(rep, "Battlecruiser")
-            print battlecruiserList[0][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[0][1])
-            print battlecruiserList[1][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[1][1]) + "\n"
-            ghostList = getUnitBuilt(rep, "Ghost")
-            print ghostList[0][0] + " Ghosts Built (0~80): " + str(ghostList[0][1])
-            print ghostList[1][0] + " Ghosts Built (0~80): " + str(ghostList[1][1]) + "\n"
-            medivacList = getUnitBuilt(rep, "Medivac")
-            print medivacList[0][0] + " Medivacs Built (0~80): " + str(medivacList[0][1])
-            print medivacList[1][0] + " Medivacs Built (0~80): " + str(medivacList[1][1]) + "\n"
-            ravenList = getUnitBuilt(rep, "Raven")
-            print ravenList[0][0] + " Ravens Built (0~80): " + str(ravenList[0][1])
-            print ravenList[1][0] + " Ravens Built (0~80): " + str(ravenList[1][1]) + "\n"
-            tankList = getUnitBuilt(rep, "SiegeTank")
-            print tankList[0][0] + " Tanks Built (0~80): " + str(tankList[0][1])
-            print tankList[1][0] + " Tanks Built (0~80): " + str(tankList[1][1]) + "\n"
-            thorList = getUnitBuilt(rep, "Thor")
-            print thorList[0][0] + " Thors Built (0~80): " + str(thorList[0][1])
-            print thorList[1][0] + " Thors Built (0~80): " + str(thorList[1][1]) + "\n"
-            vikingList = getUnitBuilt(rep, "VikingFighter")
-            print vikingList[0][0] + " Vikings Built (0~80): " + str(vikingList[0][1])
-            print vikingList[1][0] + " Vikings Built (0~80): " + str(vikingList[1][1]) + "\n"
-            hellbatList = getUnitBuilt(rep, "HellionTank")
-            print hellbatList[0][0] + " Hellbats Built (0~80): " + str(hellbatList[0][1])
-            print hellbatList[1][0] + " Hellbats Built (0~80): " + str(hellbatList[1][1]) + "\n"
-            widowMineList = getUnitBuilt(rep, "WidowMine")
-            print widowMineList[0][0] + " WidowMines Built (0~80): " + str(widowMineList[0][1])
-            print widowMineList[1][0] + " WidowMines Built (0~80): " + str(widowMineList[1][1]) + "\n"
+            apms = getAPM(rep)
+            print "Winner APM: " + `apms[0]`
+            print "Loser APM: " + `apms[1]` + "\n"
+            
+            #avgWorkersList = getAverageWorkers(rep)
+            #print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
+            #print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
+            #avgMineralList = getMineralRate(rep)
+            #print avgMineralList[0][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[0][1])
+            #print avgMineralList[1][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[1][1]) + "\n"
+            #avgGasList = getGasRate(rep)
+            #print avgGasList[0][0] + " Avg Gas Rate (0~80): " + str(avgGasList[0][1])
+            #print avgGasList[1][0] + " Avg Gas Rate (0~80): " + str(avgGasList[1][1]) + "\n"
+            #upgrades = getBasicUpgrades(rep)
+            #print "Winner --" + \
+            #      " Vehicles: " + `upgrades[0][VEHICLE_WEAPON]` + "/" + `upgrades[0][VEHICLE_ARMOR]` + \
+            #      " Ships: " + `upgrades[0][SHIP_WEAPON]` + "/" + `upgrades[0][SHIP_ARMOR]` + \
+            #      " Infantry: " + `upgrades[0][INFANTRY_WEAPON]` + "/" + `upgrades[0][INFANTRY_ARMOR]`
+            #print "Loser --" + \
+            #      " Vehicles: " + `upgrades[1][VEHICLE_WEAPON]` + "/" + `upgrades[1][VEHICLE_ARMOR]` + \
+            #      " Ships: " + `upgrades[1][SHIP_WEAPON]` + "/" + `upgrades[1][SHIP_ARMOR]` + \
+            #      " Infantry: " + `upgrades[1][INFANTRY_WEAPON]` + "/" + `upgrades[1][INFANTRY_ARMOR]`
+            # marinesList = getUnitBuilt(rep, "Marine")
+            # print marinesList[0][0] + " Marines Built (0~80): " + str(marinesList[0][1])
+            # print marinesList[1][0] + " Marines Built (0~80): " + str(marinesList[1][1]) + "\n"
+            # marauderList = getUnitBuilt(rep, "Marauder")
+            # print marauderList[0][0] + " Marauders Built (0~80): " + str(marauderList[0][1])
+            # print marauderList[1][0] + " Marauders Built (0~80): " + str(marauderList[1][1]) + "\n"
+            # reaperList = getUnitBuilt(rep, "Reaper")
+            # print reaperList[0][0] + " Reapers Built (0~80): " + str(reaperList[0][1])
+            # print reaperList[1][0] + " Reapers Built (0~80): " + str(reaperList[1][1]) + "\n"
+            # hellionList = getUnitBuilt(rep, "Hellion")
+            # print hellionList[0][0] + " Hellions Built (0~80): " + str(hellionList[0][1])
+            # print hellionList[1][0] + " Hellions Built (0~80): " + str(hellionList[1][1]) + "\n"
+            # bansheeList = getUnitBuilt(rep, "Banshee")
+            # print bansheeList[0][0] + " Banshees Built (0~80): " + str(bansheeList[0][1])
+            # print bansheeList[1][0] + " Banshees Built (0~80): " + str(bansheeList[1][1]) + "\n"
+            # battlecruiserList = getUnitBuilt(rep, "Battlecruiser")
+            # print battlecruiserList[0][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[0][1])
+            # print battlecruiserList[1][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[1][1]) + "\n"
+            # ghostList = getUnitBuilt(rep, "Ghost")
+            # print ghostList[0][0] + " Ghosts Built (0~80): " + str(ghostList[0][1])
+            # print ghostList[1][0] + " Ghosts Built (0~80): " + str(ghostList[1][1]) + "\n"
+            # medivacList = getUnitBuilt(rep, "Medivac")
+            # print medivacList[0][0] + " Medivacs Built (0~80): " + str(medivacList[0][1])
+            # print medivacList[1][0] + " Medivacs Built (0~80): " + str(medivacList[1][1]) + "\n"
+            # ravenList = getUnitBuilt(rep, "Raven")
+            # print ravenList[0][0] + " Ravens Built (0~80): " + str(ravenList[0][1])
+            # print ravenList[1][0] + " Ravens Built (0~80): " + str(ravenList[1][1]) + "\n"
+            # tankList = getUnitBuilt(rep, "SiegeTank")
+            # print tankList[0][0] + " Tanks Built (0~80): " + str(tankList[0][1])
+            # print tankList[1][0] + " Tanks Built (0~80): " + str(tankList[1][1]) + "\n"
+            # thorList = getUnitBuilt(rep, "Thor")
+            # print thorList[0][0] + " Thors Built (0~80): " + str(thorList[0][1])
+            # print thorList[1][0] + " Thors Built (0~80): " + str(thorList[1][1]) + "\n"
+            # vikingList = getUnitBuilt(rep, "VikingFighter")
+            # print vikingList[0][0] + " Vikings Built (0~80): " + str(vikingList[0][1])
+            # print vikingList[1][0] + " Vikings Built (0~80): " + str(vikingList[1][1]) + "\n"
+            # hellbatList = getUnitBuilt(rep, "HellionTank")
+            # print hellbatList[0][0] + " Hellbats Built (0~80): " + str(hellbatList[0][1])
+            # print hellbatList[1][0] + " Hellbats Built (0~80): " + str(hellbatList[1][1]) + "\n"
+            # widowMineList = getUnitBuilt(rep, "WidowMine")
+            # print widowMineList[0][0] + " WidowMines Built (0~80): " + str(widowMineList[0][1])
+            # print widowMineList[1][0] + " WidowMines Built (0~80): " + str(widowMineList[1][1]) + "\n"
             print "-----------------------------"
             
             total_count += 1
             if total_count > VALID_REPLAYS_TO_PROCESS:
                 break
 
+def getAPM(rep):
+    if rep.players[0].result == "Win":
+        return [int(rep.players[0].avg_apm), int(rep.players[1].avg_apm)]
+    else:
+        return [int(rep.players[1].avg_apm), int(rep.players[0].avg_apm)]
+                
+def getBasicUpgrades(rep, start=0.0, end=0.8):
+    ''' Returns the number of levels of upgrades a player finishes.  Format:
+    Winner is listed first:
+    [[v_weapon, v_armor, s_weapon, s_armor, i_weapon, i_armor],
+    [v_weapon, v_armor, s_weapon, s_armor, i_weapon, i_armor]] '''
+    upgrade_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UpgradeCompleteEvent)]
+    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    pids = []
+    playerA_amt = [0,0,0,0,0,0]
+    playerB_amt = [0,0,0,0,0,0]
+    playerAmt = [playerA_amt, playerB_amt]
+    vWeaponEvents = ["TerranVehicleWeaponsLevel1", "TerranVehicleWeaponsLevel2", "TerranVehicleWeaponsLevel3"]
+    vArmorEvents = ["TerranVehiclePlatingLevel1", "TerranVehicalPlatingLevel2", "TerranVehicalPlatingLevel3"]
+    sWeaponEvents = ["TerranShipWeaponsLevel1", "TerranShipWeaponsLevel2", "TerranShipWeaponsLevel3"]
+    sArmorEvents = ["TerranVehicleAndShipArmorsLevel1", "TerranVehicleAndShipArmorsLevel2", "TerranVehicleAndShipArmorsLevel3"]
+    iWeaponEvents = ["TerranInfantryWeaponsLevel1", "TerranInfantryWeaponsLevel2", "TerranInfantryWeaponsLevel3"]
+    iArmorEvents = ["TerranInfantryArmorsLevel1", "TerranInfantryArmorsLevel2", "TerranInfantryArmorsLevel3"]
+    basicUpgradeEvents = vWeaponEvents + vArmorEvents + sWeaponEvents + sArmorEvents + iWeaponEvents + iArmorEvents
+    
+    def _getSlot(upgrade_name, upgrade_pid):
+        playerSlot = None
+        if upgrade_pid == pids[0]:
+            playerSlot = 0
+        else:
+            playerSlot = 1
+        upgradeMatrix = [vWeaponEvents, vArmorEvents, sWeaponEvents,
+                         sArmorEvents, iWeaponEvents, iArmorEvents]
+        for i in range(0,6):
+            if upgrade_name in upgradeMatrix[i]:
+                return (playerSlot, i)
+    
+    for event in upgrade_events:
+        if game_time * start > event.second or game_time * end < event.second:
+            break
+        if event.upgrade_type_name in basicUpgradeEvents:
+            if event.pid not in pids and event.pid != NEUTRAL:
+                pids.append(event.pid)
+            slotTuple = _getSlot(event.upgrade_type_name, event.pid)
+            playerAmt[slotTuple[0]][slotTuple[1]] += 1
+    if rep.players[0].result == "Win":
+        return playerAmt
+    else:
+        return [playerAmt[1], playerAmt[0]]
+    
 def getUnitBuilt(rep, name, start=0.0, end=0.80):
     ''' Returns the number of a specified unit built within the time frame given.
     Format: [["Winner", amt]["Loser", amt]]'''
     unit_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UnitBornEvent)]
-    if OVERRIDE_UNIT_END is not None:
-        end = OVERRIDE_UNIT_END
     game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
     pids = []
     playerA_amt = 0
