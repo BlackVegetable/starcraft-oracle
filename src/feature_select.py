@@ -15,6 +15,7 @@ SHIP_WEAPON = 2
 SHIP_ARMOR = 3
 INFANTRY_WEAPON = 4
 INFANTRY_ARMOR = 5
+SHIP_AND_VEHICLE_ARMOR = 6
 
 def remove_marked():
     with open('blacklist.txt', 'r+') as f:
@@ -62,9 +63,10 @@ def main():
             #print foodBlockage[0][0] + " Supply Capped Time: " + `foodBlockage[0][1]` + "%"
             #print foodBlockage[1][0] + " Supply Capped Time: " + `foodBlockage[1][1]` + "%\n"
             
-            bunkersList = getBuildingBuilt(rep, "Bunker")
-            print bunkersList[0][0] + " Bunkers Built: " + str(bunkersList[0][1])
-            print bunkersList[1][0] + " Bunkers Built: " + str(bunkersList[1][1]) + "\n"
+            #bunkersList = getBuildingBuilt(rep, "Bunker")
+            #print bunkersList[0][0] + " Bunkers Built: " + str(bunkersList[0][1])
+            #print bunkersList[1][0] + " Bunkers Built: " + str(bunkersList[1][1]) + "\n"
+            
             #avgWorkersList = getAverageWorkers(rep)
             #print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
             #print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
@@ -74,15 +76,15 @@ def main():
             #avgGasList = getGasRate(rep)
             #print avgGasList[0][0] + " Avg Gas Rate (0~80): " + str(avgGasList[0][1])
             #print avgGasList[1][0] + " Avg Gas Rate (0~80): " + str(avgGasList[1][1]) + "\n"
-            #upgrades = getBasicUpgrades(rep)
-            #print "Winner --" + \
-            #      " Vehicles: " + `upgrades[0][VEHICLE_WEAPON]` + "/" + `upgrades[0][VEHICLE_ARMOR]` + \
-            #      " Ships: " + `upgrades[0][SHIP_WEAPON]` + "/" + `upgrades[0][SHIP_ARMOR]` + \
-            #      " Infantry: " + `upgrades[0][INFANTRY_WEAPON]` + "/" + `upgrades[0][INFANTRY_ARMOR]`
-            #print "Loser --" + \
-            #      " Vehicles: " + `upgrades[1][VEHICLE_WEAPON]` + "/" + `upgrades[1][VEHICLE_ARMOR]` + \
-            #      " Ships: " + `upgrades[1][SHIP_WEAPON]` + "/" + `upgrades[1][SHIP_ARMOR]` + \
-            #      " Infantry: " + `upgrades[1][INFANTRY_WEAPON]` + "/" + `upgrades[1][INFANTRY_ARMOR]`
+            upgrades = getBasicUpgrades(rep)
+            print "Winner --" + \
+                  " Vehicles: " + `upgrades[0][VEHICLE_WEAPON]` + "/" + `upgrades[0][VEHICLE_ARMOR]` + \
+                  " Ships: " + `upgrades[0][SHIP_WEAPON]` + "/" + `upgrades[0][SHIP_ARMOR]` + \
+                  " Infantry: " + `upgrades[0][INFANTRY_WEAPON]` + "/" + `upgrades[0][INFANTRY_ARMOR]`
+            print "Loser --" + \
+                  " Vehicles: " + `upgrades[1][VEHICLE_WEAPON]` + "/" + `upgrades[1][VEHICLE_ARMOR]` + \
+                  " Ships: " + `upgrades[1][SHIP_WEAPON]` + "/" + `upgrades[1][SHIP_ARMOR]` + \
+                  " Infantry: " + `upgrades[1][INFANTRY_WEAPON]` + "/" + `upgrades[1][INFANTRY_ARMOR]`
             # marinesList = getUnitBuilt(rep, "Marine")
             # print marinesList[0][0] + " Marines Built (0~80): " + str(marinesList[0][1])
             # print marinesList[1][0] + " Marines Built (0~80): " + str(marinesList[1][1]) + "\n"
@@ -203,16 +205,19 @@ def getBasicUpgrades(rep, start=0.0, end=0.8):
     upgrade_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UpgradeCompleteEvent)]
     game_time = compute_time(rep)
     pids = []
-    playerA_amt = [0,0,0,0,0,0]
-    playerB_amt = [0,0,0,0,0,0]
+    playerA_amt = [0,0,0,0,0,0,0] # Last value is for ship and vehicle armors which share
+    playerB_amt = [0,0,0,0,0,0,0] # an upgrade in HotS.
     playerAmt = [playerA_amt, playerB_amt]
     vWeaponEvents = ["TerranVehicleWeaponsLevel1", "TerranVehicleWeaponsLevel2", "TerranVehicleWeaponsLevel3"]
-    vArmorEvents = ["TerranVehiclePlatingLevel1", "TerranVehicalPlatingLevel2", "TerranVehicalPlatingLevel3"]
+    vArmorEvents = ["TerranVehiclePlatingLevel1", "TerranVehicalPlatingLevel2", "TerranVehicalPlatingLevel3",
+                    "TerranVehicleAndShipArmorsLevel1", "TerranVehicleAndShipArmorsLevel2", "TerranVehicleAndShipArmorsLevel3"]
     sWeaponEvents = ["TerranShipWeaponsLevel1", "TerranShipWeaponsLevel2", "TerranShipWeaponsLevel3"]
-    sArmorEvents = ["TerranVehicleAndShipArmorsLevel1", "TerranVehicleAndShipArmorsLevel2", "TerranVehicleAndShipArmorsLevel3"]
+    sArmorEvents = ["TerranShipPlatingLevel1", "TerranShipPlatingLevel2", "TerranShipPlatingLevel3",
+                    "TerranVehicleAndShipArmorsLevel1", "TerranVehicleAndShipArmorsLevel2", "TerranVehicleAndShipArmorsLevel3"]
     iWeaponEvents = ["TerranInfantryWeaponsLevel1", "TerranInfantryWeaponsLevel2", "TerranInfantryWeaponsLevel3"]
     iArmorEvents = ["TerranInfantryArmorsLevel1", "TerranInfantryArmorsLevel2", "TerranInfantryArmorsLevel3"]
     basicUpgradeEvents = vWeaponEvents + vArmorEvents + sWeaponEvents + sArmorEvents + iWeaponEvents + iArmorEvents
+    
     
     def _getSlot(upgrade_name, upgrade_pid):
         playerSlot = None
@@ -222,7 +227,12 @@ def getBasicUpgrades(rep, start=0.0, end=0.8):
             playerSlot = 1
         upgradeMatrix = [vWeaponEvents, vArmorEvents, sWeaponEvents,
                          sArmorEvents, iWeaponEvents, iArmorEvents]
+        shipAndVehicleArmor = ["TerranVehicleAndShipArmorsLevel1", 
+                              "TerranVehicleAndShipArmorsLevel2", 
+                              "TerranVehicleAndShipArmorsLevel3"]
         for i in range(0,6):
+            if upgrade_name in shipAndVehicleArmor:
+                return (playerSlot, SHIP_AND_VEHICLE_ARMOR)
             if upgrade_name in upgradeMatrix[i]:
                 return (playerSlot, i)
     
@@ -234,6 +244,10 @@ def getBasicUpgrades(rep, start=0.0, end=0.8):
                 pids.append(event.pid)
             slotTuple = _getSlot(event.upgrade_type_name, event.pid)
             playerAmt[slotTuple[0]][slotTuple[1]] += 1
+    playerAmt[0][VEHICLE_ARMOR] += playerAmt[0][SHIP_AND_VEHICLE_ARMOR]
+    playerAmt[0][SHIP_ARMOR] += playerAmt[0][SHIP_AND_VEHICLE_ARMOR]
+    playerAmt[1][VEHICLE_ARMOR] += playerAmt[1][SHIP_AND_VEHICLE_ARMOR]
+    playerAmt[1][SHIP_ARMOR] += playerAmt[1][SHIP_AND_VEHICLE_ARMOR]
     if rep.players[0].result == "Win":
         return playerAmt
     else:
