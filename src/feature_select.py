@@ -54,6 +54,9 @@ def main():
             print "Winner APM: " + `apms[0]`
             print "Loser APM: " + `apms[1]` + "\n"
             
+            foodBlockage = getSupplyCappedPercent(rep)
+            print foodBlockage[0][0] + " Supply Capped Time: " + `foodBlockage[0][1]` + "%"
+            print foodBlockage[1][0] + " Supply Capped Time: " + `foodBlockage[1][1]` + "%\n"
             #avgWorkersList = getAverageWorkers(rep)
             #print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
             #print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
@@ -120,7 +123,39 @@ def main():
             if total_count > VALID_REPLAYS_TO_PROCESS:
                 break
 
+def getSupplyCappedPercent(rep, start=0.0, end=1.0):
+    '''Returns an estimate of the percentage of time a player spends
+    unable to produce new units due to having insufficient supply.
+    This is typically considered one component of an inefficient
+    playstyle.
+    Returns this value as a percentage of time where this is true, as
+    an int.'''
+    stats_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
+    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    pids = []
+    playerA_amt = 0.0
+    playerB_amt = 0.0
+    event_count = len(stats_events) / 2 # How many events belonged to each player.
+    for event in stats_events:
+        if game_time * start > event.second or game_time * end < event.second:
+            break
+        if event.pid not in pids:
+            pids.append(event.pid)
+        if event.food_made <= event.food_used:
+            if event.pid is pids[0]:
+                playerA_amt += 1.0
+            else:
+                playerB_amt += 1.0
+    playerA_amt /= float(event_count)
+    playerB_amt /= float(event_count)
+    if rep.players[0].result == "Win":
+        return [["Winner:", int(playerA_amt * 100)],["Loser:", int(playerB_amt * 100)]]
+    else:
+        return [["Winner:", int(playerB_amt * 100)],["Loser:", int(playerA_amt * 100)]]
+                
 def getAPM(rep):
+    '''Returns the Actions per minute of the players as defined by the
+    APMtracker module bundled with sc2reader.'''
     if rep.players[0].result == "Win":
         return [int(rep.players[0].avg_apm), int(rep.players[1].avg_apm)]
     else:
