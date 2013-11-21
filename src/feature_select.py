@@ -23,6 +23,10 @@ def remove_marked():
             shutil.move(x[:-1], "c:/useless_replays/" + x[11:-1]) 
         f.write("\n")
 
+def compute_time(rep):
+    '''Returns the number of seconds of game_time in a replay.'''
+    return rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+        
 def mark_bad_replay(rep, f):
     '''Assumes file f has already been opened.
     Returns True if a bad replay was marked.'''
@@ -46,7 +50,7 @@ def main():
             #continue
             # -------------------------------
             
-            game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+            game_time = compute_time(rep)
             print "Game Processed #: " + `total_count`
             print "Game lasted: " + `game_time` + " seconds."
             
@@ -54,9 +58,13 @@ def main():
             print "Winner APM: " + `apms[0]`
             print "Loser APM: " + `apms[1]` + "\n"
             
-            foodBlockage = getSupplyCappedPercent(rep)
-            print foodBlockage[0][0] + " Supply Capped Time: " + `foodBlockage[0][1]` + "%"
-            print foodBlockage[1][0] + " Supply Capped Time: " + `foodBlockage[1][1]` + "%\n"
+            #foodBlockage = getSupplyCappedPercent(rep)
+            #print foodBlockage[0][0] + " Supply Capped Time: " + `foodBlockage[0][1]` + "%"
+            #print foodBlockage[1][0] + " Supply Capped Time: " + `foodBlockage[1][1]` + "%\n"
+            
+            bunkersList = getBuildingBuilt(rep, "Bunker")
+            print bunkersList[0][0] + " Bunkers Built: " + str(bunkersList[0][1])
+            print bunkersList[1][0] + " Bunkers Built: " + str(bunkersList[1][1]) + "\n"
             #avgWorkersList = getAverageWorkers(rep)
             #print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
             #print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
@@ -123,6 +131,32 @@ def main():
             if total_count > VALID_REPLAYS_TO_PROCESS:
                 break
 
+def getBuildingBuilt(rep, name, start=0.0, end=0.8):
+    '''Returns the numbers of a specific type of building whose construction
+    was initiated by the players.  Thus, there is no differentiation between
+    starting and cancelling a structure or having it destroyed partway, or
+    actually finishing the structure.'''
+    init_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UnitInitEvent)]
+    game_time = compute_time(rep)
+    pids = []
+    playerA_amt = 0
+    playerB_amt = 0
+    for event in init_events:
+        if game_time * start > event.second or game_time * end < event.second:
+            break
+        if event.unit_type_name != name:
+            continue
+        if event.upkeep_pid not in pids:
+            pids.append(event.upkeep_pid)
+        if event.upkeep_pid is pids[0]:
+            playerA_amt += 1
+        else:
+            playerB_amt += 1
+    if rep.players[0].result == "Win":
+        return [["Winner:", playerA_amt],["Loser:", playerB_amt]]
+    else:
+        return [["Winner:", playerB_amt],["Loser:", playerA_amt]]
+                
 def getSupplyCappedPercent(rep, start=0.0, end=1.0):
     '''Returns an estimate of the percentage of time a player spends
     unable to produce new units due to having insufficient supply.
@@ -131,7 +165,7 @@ def getSupplyCappedPercent(rep, start=0.0, end=1.0):
     Returns this value as a percentage of time where this is true, as
     an int.'''
     stats_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_amt = 0.0
     playerB_amt = 0.0
@@ -167,7 +201,7 @@ def getBasicUpgrades(rep, start=0.0, end=0.8):
     [[v_weapon, v_armor, s_weapon, s_armor, i_weapon, i_armor],
     [v_weapon, v_armor, s_weapon, s_armor, i_weapon, i_armor]] '''
     upgrade_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UpgradeCompleteEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_amt = [0,0,0,0,0,0]
     playerB_amt = [0,0,0,0,0,0]
@@ -209,7 +243,7 @@ def getUnitBuilt(rep, name, start=0.0, end=0.80):
     ''' Returns the number of a specified unit built within the time frame given.
     Format: [["Winner", amt]["Loser", amt]]'''
     unit_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UnitBornEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_amt = 0
     playerB_amt = 0
@@ -235,7 +269,7 @@ def getGasRate(rep, start=0.0, end=0.8):
     over the course of the replay. Format:
     [["Winner", amt]["Loser", amt]]'''
     stats_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_amt = 0.0
     playerB_amt = 0.0
@@ -263,7 +297,7 @@ def getMineralRate(rep, start=0.0, end=0.8):
     over the course of the replay. Format:
     [["Winner", amt]["Loser", amt]]'''
     stats_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_amt = 0.0
     playerB_amt = 0.0
@@ -293,7 +327,7 @@ def getAverageWorkers(rep, start=0.0, end=0.8):
     over the course of the replay.  Returns this in a list of list format:
     [["Winner", count],["Loser", count]]'''
     stats_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
-    game_time = rep.game_length.secs + 60 * rep.game_length.mins + 3600 * rep.game_length.hours
+    game_time = compute_time(rep)
     pids = []
     playerA_count = 0
     playerB_count = 0
