@@ -23,6 +23,8 @@ SHIP_AND_VEHICLE_ARMOR = 6
 
 # Timing constants
 MID_GAME = 450 # 60 seconds/minute * 7.5 minutes
+EARLY_EXPAND = 600 # 60 seconds/minute * 10 minutes
+EARLY_UPGRADE = 515 # 160 seconds grace period + 35 build time for Eng Bay, + 160 * 2 for two upgrades
 
 # Sadly hardcoded unit resource costs
 UNIT_COSTS = {"Marine" : 50, "Marauder" : 125, "Reaper" : 100, "Medivac" : 200,
@@ -68,12 +70,21 @@ def main():
 
             game_time = compute_time(rep)
             print "Game Processed #: " + `total_count`
-            print "Game lasted: " + `game_time` + " seconds."
+            print "Game lasted: " + `game_time` + " seconds.\n"
 
             strategies = getStrategies(rep)
+            apms = getAPM(rep)
+            foodBlockage = getSupplyCappedPercent(rep)
+            avgWorkersList = getAverageWorkers(rep, end=0.9)
             print "Winner -- Start: " + strategies[0][1] + "  End: " + strategies[0][2]
-            print "Loser  -- Start: " + strategies[1][1] + "  End: " + strategies[1][2] + "\n"
-
+            print "Winner -- Econ:  " + strategies[0][3] + "  Upgrades: " + strategies[0][4]
+            print "Winner -- APM:   " + `apms[0]` + " Supply Capped: " + `foodBlockage[0][1]` + "%"
+            print "Winner -- SCVs:  " + `avgWorkersList[0][1]` + "\n"
+            print "Loser  -- Start: " + strategies[1][1] + "  End: " + strategies[1][2]
+            print "Loser  -- Econ:  " + strategies[1][3] + "  Upgrades: " + strategies[1][4]
+            print "Loser  -- APM:   " + `apms[1]` + " Supply Capped: " + `foodBlockage[1][1]` + "%"
+            print "Loser  -- SCVs:  " + `avgWorkersList[1][1]` + "\n"
+            
             #unitComps = getOpeningStrategies(rep)
             #print "Winner --------------- "
             #for key in unitComps[0][1]:
@@ -86,21 +97,11 @@ def main():
             #        continue
             #    print key + ": " + `unitComps[1][1][key]` + "%"
 
-            #apms = getAPM(rep)
-            #print "Winner APM: " + `apms[0]`
-            #print "Loser APM: " + `apms[1]` + "\n"
-
-            #foodBlockage = getSupplyCappedPercent(rep)
-            #print foodBlockage[0][0] + " Supply Capped Time: " + `foodBlockage[0][1]` + "%"
-            #print foodBlockage[1][0] + " Supply Capped Time: " + `foodBlockage[1][1]` + "%\n"
-
             #bunkersList = getBuildingBuilt(rep, "Bunker")
             #print bunkersList[0][0] + " Bunkers Built: " + str(bunkersList[0][1])
             #print bunkersList[1][0] + " Bunkers Built: " + str(bunkersList[1][1]) + "\n"
 
-            #avgWorkersList = getAverageWorkers(rep)
-            #print avgWorkersList[0][0] + " Avg Workers (0~80): " + str(avgWorkersList[0][1])
-            #print avgWorkersList[1][0] + " Avg Workers (0~80): " + str(avgWorkersList[1][1]) + "\n"
+            
             #avgMineralList = getMineralRate(rep)
             #print avgMineralList[0][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[0][1])
             #print avgMineralList[1][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[1][1]) + "\n"
@@ -230,6 +231,16 @@ def getUnitComposition(rep, early_game=False):
     else:
         return [["Winner:", compB],["Loser:", compA]]
 
+def determineEarlyExpand(rep):
+    econs = getBuildingBuilt(rep, "CommandCenter", end=1.0, timer=EARLY_EXPAND)
+    econWinner = "No Early Expand"
+    econLoser = "No Early Expand"
+    if econs[0][1] >= 1:
+        econWinner = "Early Command Center"
+    if econs[1][1] >= 1:
+        econLoser = "Early Command Center"
+    return [econWinner, econLoser]
+        
 def getStrategies(rep):
     start_comps = getUnitComposition(rep, True)
     compA = start_comps[0][1]
@@ -282,12 +293,34 @@ def getStrategies(rep):
             return "Mixed End"
     endA = selectLateStrategy(compA)
     endB = selectLateStrategy(compB)
+    econs = determineEarlyExpand(rep)
+    upgrades = determineEarlyBasicUpgrades(rep)
+    
     if rep.players[0].result == "Win":
-        return [["Winner:", startA, endA],["Loser:", startB, endB]]
+        return [["Winner:", startA, endA, econs[0], upgrades[0]],
+                ["Loser:", startB, endB, econs[1], upgrades[1]]]
     else:
-        return [["Winner:", startB, endB],["Loser:", startA, endA]]
+        return [["Winner:", startB, endB, econs[0], upgrades[0]],
+                ["Loser:", startA, endA, econs[1], upgrades[1]]]
 
-def getBuildingBuilt(rep, name, start=0.0, end=0.8):
+def determineEarlyBasicUpgrades(rep):
+    '''Returns whether a player elected to get two or more basic upgrades rather
+    early in the match.'''
+    upList = getBasicUpgrades(rep)
+    winUpgradeTotal = 0
+    loseUpgradeTotal = 0
+    for i in range (0, 6):
+        winUpgradeTotal += upList[0][i]
+        loseUpgradeTotal += upList[1][i]
+    winUpgradeStrategy = "Default"
+    loseUpgradeStrategy = "Default"
+    if winUpgradeTotal > 1:
+        winUpgradeStrategy = "Fast Upgrades"
+    if loseUpgradeTotal > 1:
+        loseUpgradeStrategy = "Fast Upgrades"
+    return [winUpgradeStrategy, loseUpgradeStrategy]
+        
+def getBuildingBuilt(rep, name, start=0.0, end=0.8, timer=None):
     '''Returns the numbers of a specific type of building whose construction
     was initiated by the players.  Thus, there is no differentiation between
     starting and cancelling a structure or having it destroyed partway, or
@@ -299,6 +332,8 @@ def getBuildingBuilt(rep, name, start=0.0, end=0.8):
     playerB_amt = 0
     for event in init_events:
         if game_time * start > event.second or game_time * end < event.second:
+            break
+        if timer and game_time > timer:
             break
         if event.unit_type_name != name:
             continue
