@@ -3,6 +3,7 @@ import sys
 import sc2reader
 import os
 import shutil
+import random
 from sc2reader.engine.plugins import APMTracker
 
 sc2reader.engine.register_plugin(APMTracker())
@@ -25,14 +26,13 @@ SHIP_AND_VEHICLE_ARMOR = 6
 MID_GAME = 450 # 60 seconds/minute * 7.5 minutes
 EARLY_EXPAND = 600 # 60 seconds/minute * 10 minutes
 EARLY_UPGRADE = 515 # 160 seconds grace period + 35 build time for Eng Bay, + 160 * 2 for two upgrades
+TECH_MID_GAME = 1540 # 60 seconds/minute * 9 minutes
 
 # Sadly hardcoded unit resource costs
 UNIT_COSTS = {"Marine" : 50, "Marauder" : 125, "Reaper" : 100, "Medivac" : 200,
               "SiegeTank" : 275, "Thor" : 500, "Hellion" : 100, "HellionTank" : 100,
               "WidowMine" : 100, "Battlecruiser" : 700, "VikingFighter" : 225,
               "Raven" : 300, "Banshee" : 250, "Ghost" : 300}
-
-
 
 def remove_marked():
     with open('blacklist.txt', 'r+') as f:
@@ -53,9 +53,79 @@ def mark_bad_replay(rep, f):
         print "Marked bad file"
         return True
     return False
+    
+def write_to_file(file_path):
+    '''Format:
+        Game_Time,           A_APM, 
+        A_Average_workers,   A_Food,
+        (A_Early_strat),     (A_Late_strat),
+        A_Econ,              A_Upgrades,
+        B_APM,               B_Average_workers,
+        B_Food,              (B_Early_strat),
+        (B_Late_strat),      B_Econ,
+        B_Upgrades
+        
+        Of the strategies...
+        
+        Early Game:
+        Banshee, Reaper, Marine, Hellbat, M/M, Ghost, Mixed
+        
+        Late Game:
+        Bio, Mecha, Bio/Mech, Sky, Mixed
+    '''
+    LIMIT = 20
+    counter = 0
+    all_replays = sc2reader.load_replays(file_path)
+    with open('game_data.txt', 'w') as f:
+        for rep in all_replays:
+            counter += 1
+            if counter > LIMIT:
+                return
+            random.seed(42)
+            A = random.randint(0,1)
+            B = 1
+            if A == 1:
+                B = 0
+            game_time = compute_time(rep)
+            strategies = getStrategies(rep)
+            apms = getAPM(rep)
+            foodBlockage = getSupplyCappedPercent(rep)
+            avgWorkersList = getAverageWorkers(rep, end=0.9)
+            output =  str(game_time) + "," + str(apms[A]) + "," + str(avgWorkersList[A][1]) + "," + \
+                      str(foodBlockage[A][1]) + "," + str(strategies[A][1]) + "," + \
+                      str(strategies[A][2]) + "," + str(strategies[A][3]) + "," + \
+                      str(strategies[A][4]) + "," + str(apms[B]) + "," + \
+                      str(avgWorkersList[B][1]) + "," + str(foodBlockage[B][1]) + "," + \
+                      str(strategies[B][1]) + "," + str(strategies[B][2]) + "," + \
+                      str(strategies[B][3]) + "," + str(strategies[B][4])
+            # Early strategy quantification.
+            output = output.replace("Banshee Start",         "1,0,0,0,0,0,0")
+            output = output.replace("Reaper Start",          "0,1,0,0,0,0,0")
+            output = output.replace("Marine Start",          "0,0,1,0,0,0,0")
+            output = output.replace("Hellbat/Hellion Start", "0,0,0,1,0,0,0")
+            output = output.replace("Marine/Marauder Start", "0,0,0,0,1,0,0")
+            output = output.replace("Ghost Start!?",         "0,0,0,0,0,1,0")
+            output = output.replace("Mixed Start",           "0,0,0,0,0,0,1")
+            # Late strategy quantification.
+            output = output.replace("Bio End",         "1,0,0,0,0")
+            output = output.replace("Mecha End",        "0,1,0,0,0")
+            output = output.replace("Bio/Mech End",    "0,0,1,0,0")
+            output = output.replace("Sky End",         "0,0,0,1,0")
+            output = output.replace("Mixed End",       "0,0,0,0,1")
+            # Econ strategy quantification.
+            output = output.replace("No Early Expand",      "0")
+            output = output.replace("Early Command Center", "1")
+            # Upgrade strategy quantification.
+            output = output.replace("Default",       "0")
+            output = output.replace("Fast Upgrades", "1")
+            f.write(output + "\n")
 
+            
 def main():
+    write_to_file(BASE_PATH)
+    return
     total_count = 0
+    remove_marked()
     all_replays = sc2reader.load_replays(BASE_PATH)
     with open('blacklist.txt', 'a') as f:
         for rep in all_replays:
@@ -76,14 +146,16 @@ def main():
             apms = getAPM(rep)
             foodBlockage = getSupplyCappedPercent(rep)
             avgWorkersList = getAverageWorkers(rep, end=0.9)
-            print "Winner -- Start: " + strategies[0][1] + "  End: " + strategies[0][2]
-            print "Winner -- Econ:  " + strategies[0][3] + "  Upgrades: " + strategies[0][4]
-            print "Winner -- APM:   " + `apms[0]` + " Supply Capped: " + `foodBlockage[0][1]` + "%"
-            print "Winner -- SCVs:  " + `avgWorkersList[0][1]` + "\n"
-            print "Loser  -- Start: " + strategies[1][1] + "  End: " + strategies[1][2]
-            print "Loser  -- Econ:  " + strategies[1][3] + "  Upgrades: " + strategies[1][4]
-            print "Loser  -- APM:   " + `apms[1]` + " Supply Capped: " + `foodBlockage[1][1]` + "%"
-            print "Loser  -- SCVs:  " + `avgWorkersList[1][1]` + "\n"
+            #syn = determineEarlyCorrepsondingUpgrades(rep, strategies[0][1], strategies[1][1])
+            print "Winner -- Start:    " + strategies[0][1] + "  End: " + strategies[0][2]
+            print "Winner -- Econ:     " + strategies[0][3] + "  SCVs: " + `avgWorkersList[0][1]`
+            print "Winner -- Upgrades: " + strategies[0][4] #+ "  Synergy? " + `syn[0]`
+            print "Winner -- APM:      " + `apms[0]` + " Supply Capped: " + `foodBlockage[0][1]` + "%\n"
+            print "Loser  -- Start:    " + strategies[1][1] + "  End: " + strategies[1][2]
+            print "Loser  -- Econ:     " + strategies[1][3] + "  SCVs: " + `avgWorkersList[1][1]`
+            print "Loser  -- Upgrades: " + strategies[1][4] #+ "  Synergy? " + `syn[1]`
+            print "Loser  -- APM:      " + `apms[1]` + " Supply Capped: " + `foodBlockage[1][1]` + "%\n"
+            
             
             #unitComps = getOpeningStrategies(rep)
             #print "Winner --------------- "
@@ -160,11 +232,7 @@ def main():
             # print widowMineList[0][0] + " WidowMines Built (0~80): " + str(widowMineList[0][1])
             # print widowMineList[1][0] + " WidowMines Built (0~80): " + str(widowMineList[1][1]) + "\n"
             print "-----------------------------"
-
             total_count += 1
-            if total_count > VALID_REPLAYS_TO_PROCESS:
-                break
-
 
 
 def getUnitComposition(rep, early_game=False):
@@ -258,7 +326,7 @@ def getStrategies(rep):
             return "Marine Start"
         elif comp["Hellion"] + comp["HellionTank"] >= 51:
             return "Hellbat/Hellion Start"
-        elif comp["Marine"] >= 25 and comp["Marauder"] >= 20 and \
+        elif comp["Marine"] >= 25 and comp["Marauder"] >= 25 and \
              comp["Marine"] + comp["Marauder"] >= 51:
             return "Marine/Marauder Start"
         elif comp["Ghost"] >= 25:
@@ -282,7 +350,7 @@ def getStrategies(rep):
            return "Bio End"
         elif comp["SiegeTank"] + comp["Thor"] + comp["Hellion"] + \
            comp["HellionTank"] >= 60:
-           return "Mech End"
+           return "Mecha End"
         elif comp["Marine"] + comp["Medivac"] >= 33 and \
              comp["SiegeTank"] + comp["WidowMine"] >= 33:
             return "Bio/Mech End"
@@ -303,6 +371,49 @@ def getStrategies(rep):
         return [["Winner:", startB, endB, econs[0], upgrades[0]],
                 ["Loser:", startA, endA, econs[1], upgrades[1]]]
 
+def determineEarlyCorrepsondingUpgrades(rep, stratWinner, stratLoser):
+    '''Returns whether a player elected to get non-basic upgrades that
+    compliment their primary unit composition early in the game.'''
+    upgrade_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UpgradeCompleteEvent)]
+    pids = []
+    upgradeListA = []
+    upgradeListB = []
+    for event in upgrade_events:
+        if event.second > TECH_MID_GAME:
+            break
+        if event.pid not in pids and event.pid != NEUTRAL:
+            pids.append(event.pid)
+        if event.pid == pids[0]:
+            upgradeListA.append(event.upgrade_type_name);
+        else:
+            upgradeListB.append(event.upgrade_type_name);
+    #print upgradeListA
+    
+    def corresponds(upgradeList, strat):
+        if strat == "Banshee Start":
+            if "CloakingField" in upgradeList:
+                return True
+        elif strat == "Marine Start":
+            if "Stimpack" in upgradeList and "ShieldWall" in upgradeList:
+                return True
+        elif strat == "Marine/Marauder Start":
+            if "Stimpack" in upgradeList and ("PunisherGrenades" in upgradeList or
+                                               "CombatShield" in upgradeList):
+                return True
+        elif strat == "Hellbat/Hellion Start":
+            if "Transformation Servos" in upgradeList or "InfernalPreIgniter" in upgradeList:
+                return True
+        return False
+        
+    if rep.players[0].result == "Win":
+        correspondWinner = corresponds(upgradeListA, stratWinner)
+        correspondLoser = corresponds(upgradeListB, stratLoser)
+        return [correspondWinner, correspondLoser]
+    else:
+        correspondWinner = corresponds(upgradeListB, stratWinner)
+        correspondLoser = corresponds(upgradeListA, stratLoser)
+        return [correspondWinner, correspondLoser]
+                
 def determineEarlyBasicUpgrades(rep):
     '''Returns whether a player elected to get two or more basic upgrades rather
     early in the match.'''
