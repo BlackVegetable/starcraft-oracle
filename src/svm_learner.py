@@ -1,23 +1,39 @@
 import numpy as np
 import mlpy
+import os
+import matplotlib.pyplot as plt
 
 TRAIN_PERC = 0.9
 
 def main():
     #Load the game data from file
     #game_data.txt, comma delimited
-    
-    gdata = np.loadtxt('sample_data.txt', delimiter=',')
-    w = gdata.width
+    path = os.path.join('..', 'samples', 'sample_data.txt')
+    gdata = np.loadtxt(path, delimiter=',')
+
+    w = gdata.shape[0]
     x, y = gdata[:, :w], gdata[:, w].astype(np.int)
-    x.shape
-    y.shape
+
     
     train_data, test_data = sample(TRAIN_PERC, gdata)
+
+    train_x, train_y = train_data[:, :w], train_data[:, w].astype(np.int)
+    test_x, test_y = test_data[:, :w], test_data[:, w].astype(np.int)
+
     #Dimensionality reduction
     pca = mlpy.PCA()
-    
+    pca.learn(train_x)
+    train_z = pca.transform(train_x, k=2)
 
+    #Plot stuff (principle components)
+    plt.set_cmap(plt.cm.Paired)
+    fig1 = plt.figure(1)
+    title = plt.title("PCA on iris dataset")
+    plot = plt.scatter(train_z[:, 0], train_z[:, 1], c=train_y)
+    labx = plt.xlabel("First component")
+    laby = plt.ylabel("Second component")
+    plt.show()
+    
 
 def sample(percent, data):
     '''percent of data to become training data'''
@@ -36,10 +52,10 @@ def sample(percent, data):
     ts_data = data[ts_i]
 
     return (tr_data, ts_data)'''
-    tr = size * percent
-    ts = size - tr
+    tr = n * percent
+    ts = n - tr
 
-    np.shuffle(data)
+    np.random.shuffle(data)
     training_data = data[:tr]
     testing_data = data[ts:]
     return (training_data, testing_data)
