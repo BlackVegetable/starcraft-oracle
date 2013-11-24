@@ -58,12 +58,11 @@ def write_to_file(file_path):
     '''Format:
         Game_Time,           A_APM, 
         A_Average_workers,   A_Food,
-        (A_Early_strat),     (A_Late_strat),
+        A_Strategy_Matrix
         A_Econ,              A_Upgrades,
         B_APM,               B_Average_workers,
-        B_Food,              (B_Early_strat),
-        (B_Late_strat),      B_Econ,
-        B_Upgrades
+        B_Food,              B_Strategy_Matrix,
+        B_Econ,              B_Upgrades
         
         Of the strategies...
         
@@ -77,11 +76,11 @@ def write_to_file(file_path):
     counter = 0
     all_replays = sc2reader.load_replays(file_path)
     with open('game_data.txt', 'w') as f:
+        random.seed(42)
         for rep in all_replays:
             counter += 1
             if counter > LIMIT:
                 return
-            random.seed(42)
             A = random.randint(0,1)
             B = 1
             if A == 1:
@@ -92,32 +91,80 @@ def write_to_file(file_path):
             foodBlockage = getSupplyCappedPercent(rep)
             avgWorkersList = getAverageWorkers(rep, end=0.9)
             output =  str(game_time) + "," + str(apms[A]) + "," + str(avgWorkersList[A][1]) + "," + \
-                      str(foodBlockage[A][1]) + "," + str(strategies[A][1]) + "," + \
-                      str(strategies[A][2]) + "," + str(strategies[A][3]) + "," + \
+                      str(foodBlockage[A][1]) + "," + "A" + "," + \
+                      str(strategies[A][3]) + "," + \
                       str(strategies[A][4]) + "," + str(apms[B]) + "," + \
                       str(avgWorkersList[B][1]) + "," + str(foodBlockage[B][1]) + "," + \
-                      str(strategies[B][1]) + "," + str(strategies[B][2]) + "," + \
+                      "B" + "," + \
                       str(strategies[B][3]) + "," + str(strategies[B][4])
+            
+            def selectStrat (strats, first=True):
+                ''' '''
+                X = B
+                if first:
+                    X = A
+                index = None
+                early = strats[X][1]
+                if early == "Banshee Start":
+                    index = 0
+                elif early == "Reaper Start":
+                    index = 5
+                elif early == "Marine Start":
+                    index = 10
+                elif early == "Hellbat/Hellion Start":
+                    index = 15
+                elif early == "Marine/Marauder Start":
+                    index = 20
+                elif early == "Ghost Start!?":
+                    index = 25
+                elif early == "Mixed Start":
+                    index = 30
+                late = strats[X][2]
+                if late == "Bio End":
+                    index += 0
+                elif late == "Mecha End":
+                    index += 1
+                elif late == "Bio/Mech End":
+                    index += 2
+                elif late == "Sky End":
+                    index += 3
+                elif late == "Mixed End":
+                    index += 4
+                s_Array = [0] * 35
+                s_Array[index] = 1
+                outputString = ""
+                for x in s_Array:
+                    outputString += str(x) + ","
+                return outputString[:-1]
+                
+            stratA = selectStrat(strategies, True)
+            stratB = selectStrat(strategies, False)
+            
+            output = output.replace("A", stratA)
+            output = output.replace("B", stratB)
+            
             # Early strategy quantification.
-            output = output.replace("Banshee Start",         "1,0,0,0,0,0,0")
-            output = output.replace("Reaper Start",          "0,1,0,0,0,0,0")
-            output = output.replace("Marine Start",          "0,0,1,0,0,0,0")
-            output = output.replace("Hellbat/Hellion Start", "0,0,0,1,0,0,0")
-            output = output.replace("Marine/Marauder Start", "0,0,0,0,1,0,0")
-            output = output.replace("Ghost Start!?",         "0,0,0,0,0,1,0")
-            output = output.replace("Mixed Start",           "0,0,0,0,0,0,1")
+            #output = output.replace("Banshee Start",         "1,0,0,0,0,0,0")
+            #output = output.replace("Reaper Start",          "0,1,0,0,0,0,0")
+            #output = output.replace("Marine Start",          "0,0,1,0,0,0,0")
+            #output = output.replace("Hellbat/Hellion Start", "0,0,0,1,0,0,0")
+            #output = output.replace("Marine/Marauder Start", "0,0,0,0,1,0,0")
+            #output = output.replace("Ghost Start!?",         "0,0,0,0,0,1,0")
+            #output = output.replace("Mixed Start",           "0,0,0,0,0,0,1")
             # Late strategy quantification.
-            output = output.replace("Bio End",         "1,0,0,0,0")
-            output = output.replace("Mecha End",        "0,1,0,0,0")
-            output = output.replace("Bio/Mech End",    "0,0,1,0,0")
-            output = output.replace("Sky End",         "0,0,0,1,0")
-            output = output.replace("Mixed End",       "0,0,0,0,1")
+            #output = output.replace("Bio End",         "1,0,0,0,0")
+            #output = output.replace("Mecha End",        "0,1,0,0,0")
+            #output = output.replace("Bio/Mech End",    "0,0,1,0,0")
+            #output = output.replace("Sky End",         "0,0,0,1,0")
+            #output = output.replace("Mixed End",       "0,0,0,0,1")
             # Econ strategy quantification.
             output = output.replace("No Early Expand",      "0")
             output = output.replace("Early Command Center", "1")
             # Upgrade strategy quantification.
             output = output.replace("Default",       "0")
             output = output.replace("Fast Upgrades", "1")
+            # Output who really won.
+            output += "," + str(A) 
             f.write(output + "\n")
 
             
