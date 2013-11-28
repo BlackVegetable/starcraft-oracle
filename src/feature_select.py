@@ -10,6 +10,7 @@ sc2reader.engine.register_plugin(APMTracker())
 
 # Misc constants
 BASE_PATH = "../replays/"
+EXPERT_PATH = "../expert_replays/"
 NEUTRAL = 0
 VALID_REPLAYS_TO_PROCESS = 700
 
@@ -35,6 +36,7 @@ UNIT_COSTS = {"Marine" : 50, "Marauder" : 125, "Reaper" : 100, "Medivac" : 200,
               "Raven" : 300, "Banshee" : 250, "Ghost" : 300}
 
 def remove_marked():
+    '''Machine specific'''
     with open('blacklist.txt', 'r+') as f:
         for x in f:
             print x[11:-1]
@@ -54,6 +56,22 @@ def mark_bad_replay(rep, f):
         return True
     return False
     
+def get_single_history(rep, isWinner):
+    x = 1
+    if isWinner:
+        x = 0
+    
+    returnDict = {}
+    returnDict['apm'] = getAPM(rep)[x]
+    returnDict['food_capped'] = getSupplyCappedPercent(rep)[x][1]
+    returnDict['workers'] = getAverageWorkers(rep, end=0.9)[x][1]
+    strats = getStrategies(rep)
+    returnDict['s_early'] = strats[x][1]
+    returnDict['s_late'] = strats[x][2]
+    returnDict['s_econ'] = strats[x][3]
+    returnDict['s_upgrades'] = strats[x][4]
+    return returnDict
+
 def write_to_file(file_path):
     '''Format:
         Game_Time,           A_APM, 
@@ -72,15 +90,26 @@ def write_to_file(file_path):
         Late Game:
         Bio, Mecha, Bio/Mech, Sky, Mixed
     '''
-    LIMIT = 20
     counter = 0
+    bad_counter = 0
     all_replays = sc2reader.load_replays(file_path)
-    with open('game_data.txt', 'w') as f:
+    with open('game_data_experts.txt', 'w') as f:
         random.seed(42)
         for rep in all_replays:
+            print "$$$ File path: " + rep.filename + "\n"
             counter += 1
-            if counter > LIMIT:
-                return
+            if counter % 5 == 0:
+                print "Processing #" + str(counter)
+            if compute_time(rep) < 20:
+                print "Invalid game! No length!"
+                continue
+            j = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.PlayerStatsEvent)]
+            if not j:
+                print "Invalid game! No stats events!"
+                write_bad_replay(rep.filename)
+                bad_counter += 1
+                print bad_counter
+                continue
             A = random.randint(0,1)
             B = 1
             if A == 1:
@@ -143,20 +172,6 @@ def write_to_file(file_path):
             output = output.replace("A", stratA)
             output = output.replace("B", stratB)
             
-            # Early strategy quantification.
-            #output = output.replace("Banshee Start",         "1,0,0,0,0,0,0")
-            #output = output.replace("Reaper Start",          "0,1,0,0,0,0,0")
-            #output = output.replace("Marine Start",          "0,0,1,0,0,0,0")
-            #output = output.replace("Hellbat/Hellion Start", "0,0,0,1,0,0,0")
-            #output = output.replace("Marine/Marauder Start", "0,0,0,0,1,0,0")
-            #output = output.replace("Ghost Start!?",         "0,0,0,0,0,1,0")
-            #output = output.replace("Mixed Start",           "0,0,0,0,0,0,1")
-            # Late strategy quantification.
-            #output = output.replace("Bio End",         "1,0,0,0,0")
-            #output = output.replace("Mecha End",        "0,1,0,0,0")
-            #output = output.replace("Bio/Mech End",    "0,0,1,0,0")
-            #output = output.replace("Sky End",         "0,0,0,1,0")
-            #output = output.replace("Mixed End",       "0,0,0,0,1")
             # Econ strategy quantification.
             output = output.replace("No Early Expand",      "0")
             output = output.replace("Early Command Center", "1")
@@ -169,7 +184,7 @@ def write_to_file(file_path):
 
             
 def main():
-    write_to_file(BASE_PATH)
+    write_to_file(EXPERT_PATH)
     return
     total_count = 0
     remove_marked()
@@ -178,12 +193,6 @@ def main():
         for rep in all_replays:
             if mark_bad_replay(rep, f):
                 continue
-            # Short circuit for filtering ---
-            #total_count += 1
-            #if total_count > VALID_REPLAYS_TO_PROCESS:
-            #    break
-            #continue
-            # -------------------------------
 
             game_time = compute_time(rep)
             print "Game Processed #: " + `total_count`
@@ -193,7 +202,6 @@ def main():
             apms = getAPM(rep)
             foodBlockage = getSupplyCappedPercent(rep)
             avgWorkersList = getAverageWorkers(rep, end=0.9)
-            #syn = determineEarlyCorrepsondingUpgrades(rep, strategies[0][1], strategies[1][1])
             print "Winner -- Start:    " + strategies[0][1] + "  End: " + strategies[0][2]
             print "Winner -- Econ:     " + strategies[0][3] + "  SCVs: " + `avgWorkersList[0][1]`
             print "Winner -- Upgrades: " + strategies[0][4] #+ "  Synergy? " + `syn[0]`
@@ -203,81 +211,6 @@ def main():
             print "Loser  -- Upgrades: " + strategies[1][4] #+ "  Synergy? " + `syn[1]`
             print "Loser  -- APM:      " + `apms[1]` + " Supply Capped: " + `foodBlockage[1][1]` + "%\n"
             
-            
-            #unitComps = getOpeningStrategies(rep)
-            #print "Winner --------------- "
-            #for key in unitComps[0][1]:
-            #    if key == "Total":
-            #        continue
-            #    print key + ": " + `unitComps[0][1][key]` + "%"
-            #print "Loser ---------------- "
-            #for key in unitComps[1][1]:
-            #    if key == "Total":
-            #        continue
-            #    print key + ": " + `unitComps[1][1][key]` + "%"
-
-            #bunkersList = getBuildingBuilt(rep, "Bunker")
-            #print bunkersList[0][0] + " Bunkers Built: " + str(bunkersList[0][1])
-            #print bunkersList[1][0] + " Bunkers Built: " + str(bunkersList[1][1]) + "\n"
-
-            
-            #avgMineralList = getMineralRate(rep)
-            #print avgMineralList[0][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[0][1])
-            #print avgMineralList[1][0] + " Avg Mineral Rate (0~80): " + str(avgMineralList[1][1]) + "\n"
-            #avgGasList = getGasRate(rep)
-            #print avgGasList[0][0] + " Avg Gas Rate (0~80): " + str(avgGasList[0][1])
-            #print avgGasList[1][0] + " Avg Gas Rate (0~80): " + str(avgGasList[1][1]) + "\n"
-            #upgrades = getBasicUpgrades(rep)
-            #print "Winner --" + \
-            #      " Vehicles: " + `upgrades[0][VEHICLE_WEAPON]` + "/" + `upgrades[0][VEHICLE_ARMOR]` + \
-            #      " Ships: " + `upgrades[0][SHIP_WEAPON]` + "/" + `upgrades[0][SHIP_ARMOR]` + \
-            #      " Infantry: " + `upgrades[0][INFANTRY_WEAPON]` + "/" + `upgrades[0][INFANTRY_ARMOR]`
-            #print "Loser --" + \
-            #      " Vehicles: " + `upgrades[1][VEHICLE_WEAPON]` + "/" + `upgrades[1][VEHICLE_ARMOR]` + \
-            #      " Ships: " + `upgrades[1][SHIP_WEAPON]` + "/" + `upgrades[1][SHIP_ARMOR]` + \
-            #      " Infantry: " + `upgrades[1][INFANTRY_WEAPON]` + "/" + `upgrades[1][INFANTRY_ARMOR]`
-            # marinesList = getUnitBuilt(rep, "Marine")
-            # print marinesList[0][0] + " Marines Built (0~80): " + str(marinesList[0][1])
-            # print marinesList[1][0] + " Marines Built (0~80): " + str(marinesList[1][1]) + "\n"
-            # marauderList = getUnitBuilt(rep, "Marauder")
-            # print marauderList[0][0] + " Marauders Built (0~80): " + str(marauderList[0][1])
-            # print marauderList[1][0] + " Marauders Built (0~80): " + str(marauderList[1][1]) + "\n"
-            # reaperList = getUnitBuilt(rep, "Reaper")
-            # print reaperList[0][0] + " Reapers Built (0~80): " + str(reaperList[0][1])
-            # print reaperList[1][0] + " Reapers Built (0~80): " + str(reaperList[1][1]) + "\n"
-            # hellionList = getUnitBuilt(rep, "Hellion")
-            # print hellionList[0][0] + " Hellions Built (0~80): " + str(hellionList[0][1])
-            # print hellionList[1][0] + " Hellions Built (0~80): " + str(hellionList[1][1]) + "\n"
-            # bansheeList = getUnitBuilt(rep, "Banshee")
-            # print bansheeList[0][0] + " Banshees Built (0~80): " + str(bansheeList[0][1])
-            # print bansheeList[1][0] + " Banshees Built (0~80): " + str(bansheeList[1][1]) + "\n"
-            # battlecruiserList = getUnitBuilt(rep, "Battlecruiser")
-            # print battlecruiserList[0][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[0][1])
-            # print battlecruiserList[1][0] + " Battlecruisers Built (0~80): " + str(battlecruiserList[1][1]) + "\n"
-            # ghostList = getUnitBuilt(rep, "Ghost")
-            # print ghostList[0][0] + " Ghosts Built (0~80): " + str(ghostList[0][1])
-            # print ghostList[1][0] + " Ghosts Built (0~80): " + str(ghostList[1][1]) + "\n"
-            # medivacList = getUnitBuilt(rep, "Medivac")
-            # print medivacList[0][0] + " Medivacs Built (0~80): " + str(medivacList[0][1])
-            # print medivacList[1][0] + " Medivacs Built (0~80): " + str(medivacList[1][1]) + "\n"
-            # ravenList = getUnitBuilt(rep, "Raven")
-            # print ravenList[0][0] + " Ravens Built (0~80): " + str(ravenList[0][1])
-            # print ravenList[1][0] + " Ravens Built (0~80): " + str(ravenList[1][1]) + "\n"
-            # tankList = getUnitBuilt(rep, "SiegeTank")
-            # print tankList[0][0] + " Tanks Built (0~80): " + str(tankList[0][1])
-            # print tankList[1][0] + " Tanks Built (0~80): " + str(tankList[1][1]) + "\n"
-            # thorList = getUnitBuilt(rep, "Thor")
-            # print thorList[0][0] + " Thors Built (0~80): " + str(thorList[0][1])
-            # print thorList[1][0] + " Thors Built (0~80): " + str(thorList[1][1]) + "\n"
-            # vikingList = getUnitBuilt(rep, "VikingFighter")
-            # print vikingList[0][0] + " Vikings Built (0~80): " + str(vikingList[0][1])
-            # print vikingList[1][0] + " Vikings Built (0~80): " + str(vikingList[1][1]) + "\n"
-            # hellbatList = getUnitBuilt(rep, "HellionTank")
-            # print hellbatList[0][0] + " Hellbats Built (0~80): " + str(hellbatList[0][1])
-            # print hellbatList[1][0] + " Hellbats Built (0~80): " + str(hellbatList[1][1]) + "\n"
-            # widowMineList = getUnitBuilt(rep, "WidowMine")
-            # print widowMineList[0][0] + " WidowMines Built (0~80): " + str(widowMineList[0][1])
-            # print widowMineList[1][0] + " WidowMines Built (0~80): " + str(widowMineList[1][1]) + "\n"
             print "-----------------------------"
             total_count += 1
 
@@ -417,49 +350,6 @@ def getStrategies(rep):
     else:
         return [["Winner:", startB, endB, econs[0], upgrades[0]],
                 ["Loser:", startA, endA, econs[1], upgrades[1]]]
-
-def determineEarlyCorrepsondingUpgrades(rep, stratWinner, stratLoser):
-    '''Returns whether a player elected to get non-basic upgrades that
-    compliment their primary unit composition early in the game.'''
-    upgrade_events = [x for x in rep.events if isinstance(x, sc2reader.events.tracker.UpgradeCompleteEvent)]
-    pids = []
-    upgradeListA = []
-    upgradeListB = []
-    for event in upgrade_events:
-        if event.second > TECH_MID_GAME:
-            break
-        if event.pid not in pids and event.pid != NEUTRAL:
-            pids.append(event.pid)
-        if event.pid == pids[0]:
-            upgradeListA.append(event.upgrade_type_name);
-        else:
-            upgradeListB.append(event.upgrade_type_name);
-    #print upgradeListA
-    
-    def corresponds(upgradeList, strat):
-        if strat == "Banshee Start":
-            if "CloakingField" in upgradeList:
-                return True
-        elif strat == "Marine Start":
-            if "Stimpack" in upgradeList and "ShieldWall" in upgradeList:
-                return True
-        elif strat == "Marine/Marauder Start":
-            if "Stimpack" in upgradeList and ("PunisherGrenades" in upgradeList or
-                                               "CombatShield" in upgradeList):
-                return True
-        elif strat == "Hellbat/Hellion Start":
-            if "Transformation Servos" in upgradeList or "InfernalPreIgniter" in upgradeList:
-                return True
-        return False
-        
-    if rep.players[0].result == "Win":
-        correspondWinner = corresponds(upgradeListA, stratWinner)
-        correspondLoser = corresponds(upgradeListB, stratLoser)
-        return [correspondWinner, correspondLoser]
-    else:
-        correspondWinner = corresponds(upgradeListB, stratWinner)
-        correspondLoser = corresponds(upgradeListA, stratLoser)
-        return [correspondWinner, correspondLoser]
                 
 def determineEarlyBasicUpgrades(rep):
     '''Returns whether a player elected to get two or more basic upgrades rather
@@ -564,7 +454,6 @@ def getBasicUpgrades(rep, start=0.0, end=0.8):
     iWeaponEvents = ["TerranInfantryWeaponsLevel1", "TerranInfantryWeaponsLevel2", "TerranInfantryWeaponsLevel3"]
     iArmorEvents = ["TerranInfantryArmorsLevel1", "TerranInfantryArmorsLevel2", "TerranInfantryArmorsLevel3"]
     basicUpgradeEvents = vWeaponEvents + vArmorEvents + sWeaponEvents + sArmorEvents + iWeaponEvents + iArmorEvents
-
 
     def _getSlot(upgrade_name, upgrade_pid):
         playerSlot = None
@@ -712,23 +601,6 @@ def getAverageWorkers(rep, start=0.0, end=0.8):
     else:
         return [["No winner found:", playerA_count],["No winner found:", playerB_count]]
 
-def formatReplay(replay):
-    output =  replay.filename +'\n'
-    output += '-------------------------\n'
-    output += replay.category+' Game, '+str(replay.start_time)+'\n'
-    output += replay.type+' on '+replay.map_name+'\n'
-    output += 'Length: '+str(replay.game_length)
-    return output
-
-def formatPlayers(replay):
-    if replay.type != '1v1':
-        return "Not a 1v1 match"
-    output_string = ""
-    for team in replay.teams:
-        for player in team:
-            output_string += "\n    " + player.pick_race[0] + " " + player.name
-    return output_string
-
 def isBadMatch(replay):
     '''If the level difference between the players is
     beyond a threshold or if the match in question is
@@ -747,34 +619,7 @@ def isBadMatch(replay):
     sidA = replay.humans[0].sid
     sidB = replay.humans[1].sid
 
-    #levelA = replay.humans[0].sidcombined_race_levels
-    #levelB = replay.users[1].combined_race_levels
-    #if math.abs(levelA - levelB) > 25:
-    #    print "Players too different: " + str(math.abs(lavelA - levelB))
-    #    return True
     return False
-
-def getWinner(replay):
-    winningPid = None
-    if replay.winner is replay.teams[0]:
-        winningPid = replay.teams[0].players[0].pid
-    elif replay.winner is replay.teams[1]:
-        winningPid = replay.teams[1].players[0].pid
-    else:
-        print "What the heck?  Wrong team won??"
-    return winningPid
-
-#def formatUsers(replay):
-#    output_string = ""
-#    output_string = "\n    " + replay.users[0].uid
-#    output_string = "\n    is level: " + str(replay.users[0].combined_race_levels)
-#    output_string = "\n    has highest league: " + replay.users[0].highest_league
-#    output_string = "----------------"
-#    output_string = "\n    " + replay.users[1].uid
-#    output_string = "\n    is level: " + str(replay.users[1].combined_race_levels)
-#    output_string = "\n    has highest league: " + replay.users[1].highest_league
-#    return output_string
-
 
 if __name__ == '__main__':
     main()
