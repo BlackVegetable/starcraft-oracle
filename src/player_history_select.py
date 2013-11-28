@@ -5,7 +5,7 @@ import sc2reader
 import feature_select
 
 class SCPlayer:
-    ''' '''
+    '''Information on a player's playing patterns across matches.'''
     def __init__(self, id, bnet_id):
         self.id = id
         self.bnet_id = bnet_id
@@ -95,8 +95,32 @@ def get_explicit_bad_list(fname):
             print "Debug: " + name[18:-12]
     return bad_list
         
+def output_meta_data (replay_pickle):
+    '''Writes meta data from a pickled file to a text file for testing
+    a learner that has player history information.
+    
+    Format:
+    1st Column -- Match ID
+    2nd Column -- Player A ID
+    3rd Column -- Player A BNET ID
+    4th Column -- Player B ID
+    5th Column -- Player B BNET ID
+    6th Column -- Which player won (1 means player A, 2 means player B)
+    '''
+    matches = pickle.load(open(replay_pickle, "rb"))
+    with open("test_matches.txt", "a") as f:
+        for match in matches:
+            output = match.match_id + ","
+            output += match.player_1_id + ","
+            output += match.player_1_bnet_id + ","
+            output += match.player_2_id + ","
+            output += match.player_2_bnet_id + ","
+            output += match.winner + "\n"
+            f.write(output)
+    
 def init_replay_data (replay_pickle):
-    ''' '''
+    '''Aggregates player information across matches for all players found
+    in all matches corresponding to a pickled metadata file.'''
     matches = pickle.load(open(replay_pickle, "rb"))
     
     scplayers = {}
@@ -178,8 +202,8 @@ def init_replay_data (replay_pickle):
     
     
 def main ():
-    init_replay_data("../expert_replays/games_replays_1845.p")
-    
+    #init_replay_data("../expert_replays/games_replays_1845.p")
+    output_meta_data("../expert_replays/games_replays_78.p")
 
 if __name__ == '__main__':
     main()
